@@ -12,6 +12,7 @@ using System.Data.SqlClient;
 using System.Xml;
 using SH = Microsoft.ApplicationBlocks.Data.SqlHelper;
 using System.Diagnostics;
+using StackExchange.Profiling.Data;
 
 namespace umbraco.DataLayer.SqlHelpers.SqlServer
 {
@@ -56,8 +57,14 @@ namespace umbraco.DataLayer.SqlHelpers.SqlServer
 
             using (var cc = UseCurrentConnection)
             {
+                var connection = cc.Connection as SqlConnection;
+                if (connection == null)
+                {
+                    var profiledDbConnection = cc.Connection as EFProfiledDbConnection;
+                    connection = profiledDbConnection != null ? (SqlConnection)profiledDbConnection.InnerConnection : connection;
+                }
                 return cc.Transaction == null 
-                    ? SH.ExecuteScalar((SqlConnection) cc.Connection, CommandType.Text, commandText, parameters) 
+                    ? SH.ExecuteScalar(connection, CommandType.Text, commandText, parameters) 
                     : SH.ExecuteScalar((SqlTransaction) cc.Transaction, CommandType.Text, commandText, parameters);
             }
         }
@@ -102,8 +109,14 @@ namespace umbraco.DataLayer.SqlHelpers.SqlServer
 
             using (var cc = UseCurrentConnection)
             {
+                var connection = cc.Connection as SqlConnection;
+                if (connection == null)
+                {
+                    var profiledDbConnection = cc.Connection as EFProfiledDbConnection;
+                    connection = profiledDbConnection != null ? (SqlConnection)profiledDbConnection.InnerConnection : connection;
+                }
                 return cc.Transaction == null
-                    ? new SqlServerDataReader(SH.ExecuteReader((SqlConnection) cc.Connection, CommandType.Text, commandText, parameters))
+                    ? new SqlServerDataReader(SH.ExecuteReader(connection, CommandType.Text, commandText, parameters))
                     : new SqlServerDataReader(SH.ExecuteReader((SqlTransaction) cc.Transaction, CommandType.Text, commandText, parameters));
             }
         }
