@@ -6,8 +6,10 @@
  * 
  ***********************************************************************************/
 
+using StackExchange.Profiling.Data;
 using System;
 using System.Data;
+using System.Data.SqlClient;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -430,9 +432,18 @@ namespace umbraco.DataLayer
             get
             {
                 var connection = ConnectionProperty.GetValue(_database, NoArgs);
-                if (connection == null) return null;
+                if (connection == null)
+                {
+                    return null;
+                }
                 var inner = InnerConnectionProperty.GetValue(connection, NoArgs);
-                return inner as IDbConnection;
+                var resultConnection = inner as SqlConnection;
+                if (resultConnection == null)
+                {
+                    var profiledDbConnection = inner as EFProfiledDbConnection;
+                    resultConnection = profiledDbConnection != null ? (SqlConnection)profiledDbConnection.InnerConnection : resultConnection;
+                }
+                return resultConnection;
             }
         }
 
