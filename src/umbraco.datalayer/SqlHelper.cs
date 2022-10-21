@@ -454,7 +454,13 @@ namespace umbraco.DataLayer
                 var transaction = TransactionField.GetValue(_database);
                 if (transaction == null) return null;
                 var inner = InnerTransactionProperty.GetValue(transaction, NoArgs);
-                return inner as IDbTransaction;
+                var resultTransaction = inner as SqlTransaction;
+                if (resultTransaction == null)
+                {
+                    var profiledDbConnection = inner as ProfiledDbTransaction;
+                    resultTransaction = profiledDbConnection != null ? (SqlTransaction)profiledDbConnection.WrappedTransaction : resultTransaction;
+                }
+                return resultTransaction;
             }
         }
 
