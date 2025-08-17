@@ -17,6 +17,8 @@ using umbraco.cms.presentation.Trees;
 using Umbraco.Core.Services;
 using ApplicationTree = Umbraco.Core.Models.ApplicationTree;
 using UrlHelper = System.Web.Http.Routing.UrlHelper;
+using System.Reflection;
+using Umbraco.Core.Logging;
 
 namespace Umbraco.Web.Trees
 {
@@ -107,7 +109,26 @@ namespace Umbraco.Web.Trees
             
             var foundControllerTree = foundControllerTreeAttempt.Result;
             //instantiate it, since we are proxying, we need to setup the instance with our current context
-            var instance = (TreeController)DependencyResolver.Current.GetService(foundControllerTree);
+            TreeController instance = null;
+
+            try
+            {
+                instance = DependencyResolver.Current.GetService(foundControllerTree) as TreeController
+                           ?? (TreeController)Activator.CreateInstance(foundControllerTree);
+            }
+            catch (TargetInvocationException tie)
+            {
+                // If the controller’s constructor throws (e.g., NewsletterStudio bootstrap not ready),
+                // this will show the real inner cause.
+                LogHelper.Error(typeof(ApplicationTreeExtensions), "Failed to create tree controller", tie.InnerException ?? tie);
+                throw;
+            }
+
+            if (instance == null)
+            {
+                throw new InvalidOperationException(
+                    $"Could not create tree controller for type {foundControllerTree.FullName} via DI or Activator.");
+            }
 
             //NOTE: This is all required in order to execute the auth-filters for the sub request, we 
             // need to "trick" web-api into thinking that it is actually executing the proxied controller.

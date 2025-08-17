@@ -32,47 +32,54 @@ namespace Umbraco.Web.Trees
         [HttpQueryStringFilter("queryStrings")]
         public async Task<SectionRootNode> GetApplicationTrees(string application, string tree, FormDataCollection queryStrings, bool onlyInitialized = true)
         {
-            if (string.IsNullOrEmpty(application)) throw new HttpResponseException(HttpStatusCode.NotFound);
-
-            var rootId = Constants.System.Root.ToString(CultureInfo.InvariantCulture);
-
-            //find all tree definitions that have the current application alias
-            var appTrees = Services.ApplicationTreeService.GetApplicationTrees(application, onlyInitialized).ToArray();
-
-            if (string.IsNullOrEmpty(tree) == false || appTrees.Length == 1)
+            try
             {
-                var apptree = string.IsNullOrEmpty(tree) == false 
-                    ? appTrees.SingleOrDefault(x => x.Alias == tree)
-                    : appTrees.SingleOrDefault();
+                if (string.IsNullOrEmpty(application)) throw new HttpResponseException(HttpStatusCode.NotFound);
 
-                if (apptree == null) throw new HttpResponseException(HttpStatusCode.NotFound);
+                var rootId = Constants.System.Root.ToString(CultureInfo.InvariantCulture);
 
-                var result = await GetRootForSingleAppTree(
-                    apptree,
-                    Constants.System.Root.ToString(CultureInfo.InvariantCulture),
-                    queryStrings, 
-                    application);
+                //find all tree definitions that have the current application alias
+                var appTrees = Services.ApplicationTreeService.GetApplicationTrees(application, onlyInitialized).ToArray();
 
-                //this will be null if it cannot convert to ta single root section
-                if (result != null)
-                    return result;
-            }
-
-            var collection = new TreeNodeCollection();
-            foreach (var apptree in appTrees)
-            {
-                //return the root nodes for each tree in the app
-                var rootNode = await GetRootForMultipleAppTree(apptree, queryStrings);
-                //This could be null if the tree decides not to return it's root (i.e. the member type tree does this when not in umbraco membership mode)
-                if (rootNode != null)
+                if (string.IsNullOrEmpty(tree) == false || appTrees.Length == 1)
                 {
-                    collection.Add(rootNode);     
-                }
-            }
+                    var apptree = string.IsNullOrEmpty(tree) == false
+                        ? appTrees.SingleOrDefault(x => x.Alias == tree)
+                        : appTrees.SingleOrDefault();
 
-            var multiTree = SectionRootNode.CreateMultiTreeSectionRoot(rootId, collection);
-            multiTree.Name = ui.Text("sections", application);
-            return multiTree;
+                    if (apptree == null) throw new HttpResponseException(HttpStatusCode.NotFound);
+
+                    var result = await GetRootForSingleAppTree(
+                        apptree,
+                        Constants.System.Root.ToString(CultureInfo.InvariantCulture),
+                        queryStrings,
+                        application);
+
+                    //this will be null if it cannot convert to ta single root section
+                    if (result != null)
+                        return result;
+                }
+
+                var collection = new TreeNodeCollection();
+                foreach (var apptree in appTrees)
+                {
+                    //return the root nodes for each tree in the app
+                    var rootNode = await GetRootForMultipleAppTree(apptree, queryStrings);
+                    //This could be null if the tree decides not to return it's root (i.e. the member type tree does this when not in umbraco membership mode)
+                    if (rootNode != null)
+                    {
+                        collection.Add(rootNode);
+                    }
+                }
+
+                var multiTree = SectionRootNode.CreateMultiTreeSectionRoot(rootId, collection);
+                multiTree.Name = ui.Text("sections", application);
+                return multiTree;
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
         }
 
         /// <summary>
@@ -83,29 +90,36 @@ namespace Umbraco.Web.Trees
         /// <returns></returns>
         private async Task<TreeNode> GetRootForMultipleAppTree(ApplicationTree configTree, FormDataCollection queryStrings)
         {
-            if (configTree == null) throw new ArgumentNullException("configTree");
             try
             {
-                var byControllerAttempt = await configTree.TryGetRootNodeFromControllerTree(queryStrings, ControllerContext);
-                if (byControllerAttempt.Success)
+                if (configTree == null) throw new ArgumentNullException("configTree");
+                try
                 {
-                    return byControllerAttempt.Result;
+                    var byControllerAttempt = await configTree.TryGetRootNodeFromControllerTree(queryStrings, ControllerContext);
+                    if (byControllerAttempt.Success)
+                    {
+                        return byControllerAttempt.Result;
+                    }
                 }
-            }
-            catch (HttpResponseException)
-            {
-                //if this occurs its because the user isn't authorized to view that tree, in this case since we are loading multiple trees we
-                //will just return null so that it's not added to the list.
-                return null;
-            }
+                catch (HttpResponseException)
+                {
+                    //if this occurs its because the user isn't authorized to view that tree, in this case since we are loading multiple trees we
+                    //will just return null so that it's not added to the list.
+                    return null;
+                }
 
-            var legacyAttempt = configTree.TryGetRootNodeFromLegacyTree(queryStrings, Url, configTree.ApplicationAlias);
-            if (legacyAttempt.Success)
-            {
-                return legacyAttempt.Result;
-            }
+                var legacyAttempt = configTree.TryGetRootNodeFromLegacyTree(queryStrings, Url, configTree.ApplicationAlias);
+                if (legacyAttempt.Success)
+                {
+                    return legacyAttempt.Result;
+                }
 
-            throw new ApplicationException("Could not get root node for tree type " + configTree.Alias);
+                throw new ApplicationException("Could not get root node for tree type " + configTree.Alias);
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
         }
 
         /// <summary>
